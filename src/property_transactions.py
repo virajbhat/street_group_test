@@ -1,22 +1,26 @@
-from operator import index
-from tkinter.font import names
 import apache_beam as beam
 from apache_beam.io import ReadFromText
-import datetime
 import os
-import pandas as pd
-from apache_beam.dataframe.io import *
-from apache_beam.dataframe.transforms import DataframeTransform
-from apache_beam.dataframe.convert import to_pcollection
-
 from collections import namedtuple
+from pathlib import Path
 
-input_file_full = r'C:/projects/street_group_data_engineer/street_group_test/input_files/pp-complete.csv'
-input_file_yearly = r'C:/Users/viraj/Downloads/pp-2021.csv'
-output_prefix = os. getcwd() + r'/output_files/results_splitdata'
+#create input directory and input file
+Path(os. getcwd() + r'/input_files/').mkdir(parents=True, exist_ok=True)
+input_file_yearly = os.getcwd() + r'/input_files/pp-2021.csv'
+
+#create output directory if it doesn't exist.
+Path(os. getcwd() + r'/output_files/').mkdir(parents=True, exist_ok=True)
+output_prefix = os. getcwd() + r'/output_files/results'
+
+#Check input
+file_exists = os.path.exists(input_file_yearly)
+
+if not file_exists:
+    print('Input file not found. Code exiting. Please place input data file in <current working directory>/input_files/<file_name>.csv')
+    exit(1)
 
 
-
+#split input data and return with field names
 class Split(beam.DoFn):
     def process(self, element):
         element = element.split('","')
@@ -41,13 +45,15 @@ class Split(beam.DoFn):
         'record_status':record_status
         }]
 
+
+
+#Generate unqiue key using property data
 class unique_key_gen(beam.DoFn):
     def remove_space(k,v):
         return ''.join(k[v].split(' '))
-    def convert(dictionary):
-        return namedtuple('NameTuple', dictionary.keys())(**dictionary)
 
     def process(self, element):
+        results = []
         post_code = unique_key_gen.remove_space(element, 'post_code')
         paon = unique_key_gen.remove_space(element, 'PAON')
         saon = unique_key_gen.remove_space(element, 'SAON')
@@ -57,42 +63,36 @@ class unique_key_gen(beam.DoFn):
         county = unique_key_gen.remove_space(element, 'county')
         unique_keygen_list = [post_code,paon,saon,locality,Town,district,county]
         unique_property_key = '_'.join(unique_keygen_list)
-        key_dict = {'property_ID': unique_property_key,'transaction_details':element}
-
-        my_tuple = (unique_property_key, element)
-        results = []
         keyval= list((unique_property_key, element))
         results.append(keyval)
-        #print(results)
         return results
-        
-        element = {**key_dict,**element}
 
-        #key_dict = unique_key_gen.convert(key_dict)
-        #element = beam.Row(element)
-        print(my_tuple)
-
-        return my_tuple
-
-class get_tuple(beam.DoFn):
-    
+#Unpack tuple data to get data in proper format. {Property_ID:<property_details>,Transaction_Details:[<transactions>]}
+class unpack_tuple(beam.DoFn):
     def process(self, element):
-        results = []
-        keyval= list((element['date'], element['transaction_amount']))
-        results.append(keyval)
-        return results
+        element_dict = {'Property_ID':element[0], 'Transaction_Details':element[1]}
+        return [element_dict]
 
 
 
-p = beam.Pipeline()
+class tranctions_composite_transform(beam.PTransform):
 
-inputdata  = p | 'read_data' >> ReadFromText(input_file_yearly, skip_header_lines=1)
+  def expand(self, pcollect):
+    return (
+        pcollect 
+    
+    | 'split_data' >> beam.ParDo(Split())
+    | 'keygen' >> beam.ParDo(unique_key_gen())
+    | 'group_property_id' >> beam.GroupByKey()
+    | 'unpack_tuple' >> beam.ParDo(unpack_tuple())
+    )
 
 
 
-split_data = inputdata | 'split' >> beam.ParDo(Split())
-key_gen = split_data | 'key' >> beam.ParDo(unique_key_gen())
-group = key_gen | 'grp' >> beam.GroupByKey()
-jsonl_result = split_data |'jsonl_output' >> beam.io.WriteToText(file_path_prefix=output_prefix, file_name_suffix='.jsonl')
-
-p.run()
+if __name__ == '__main__':
+    p = beam.Pipeline()
+    input_data = p | 'read_data' >> ReadFromText(input_file_yearly, skip_header_lines=1)
+    result = input_data | tranctions_composite_transform()
+    output_data = result  | 'jsonl_output' >> beam.io.WriteToText(file_path_prefix=output_prefix, file_name_suffix='.jsonl')
+    p.run()
+    print('Pipeline Run Completed!!')
