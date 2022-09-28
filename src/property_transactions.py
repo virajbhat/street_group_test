@@ -16,7 +16,7 @@ output_prefix = os. getcwd() + r'/output_files/results'
 file_exists = os.path.exists(input_file_yearly)
 
 if not file_exists:
-    print('Input file not found. Code exiting. Please place input data file in <current working directory>/input_files/<file_name>.csv')
+    print(f'Input file not found. Code exiting. Please place input data file in {os. getcwd()}\input_files\<file_name>.csv')
     exit(1)
 
 
