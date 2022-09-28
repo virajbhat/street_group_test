@@ -49,10 +49,10 @@ Code can directly be run using run button in the IDE
   
 Steps for commandline:
 
-Navigate to src folder
-Run unittest: `python -m unittest discover`
-Run transactions.py from IDE or enter command: `python property_transactions.py`
-Run both together: `python -m unittest discover && python property_transactions.py`
-Check output in output folder in project directory. (results-00000-of-00001.jsonl)
-Output format is newline delimited json file. (jsonl)
+1. Navigate to src folder
+2. Run unittest: `python -m unittest discover`
+3. Run transactions.py from IDE or enter command: `python property_transactions.py`
+4. Run both together: `python -m unittest discover && python property_transactions.py`
+5. Check output in output folder in project directory. (results-00000-of-00001.jsonl)
+6. Output format is newline delimited json file. (jsonl)
  
